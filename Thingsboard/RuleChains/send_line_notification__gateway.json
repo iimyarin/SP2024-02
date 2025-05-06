@@ -1,0 +1,202 @@
+{
+  "ruleChain": {
+    "name": "Send Line Notification (Gateway)",
+    "type": "CORE",
+    "firstRuleNodeId": null,
+    "root": false,
+    "debugMode": false,
+    "configuration": null,
+    "additionalInfo": {
+      "description": ""
+    }
+  },
+  "metadata": {
+    "version": 21,
+    "firstNodeIndex": 2,
+    "nodes": [
+      {
+        "type": "org.thingsboard.rule.engine.transform.TbTransformMsgNode",
+        "name": "ตรวจค่า Offline",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1744368341253
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "var deviceName = metadata.deviceName;\n\nfunction returnMsg() {\n    return {\n        msg: msg,\n        metadata: metadata,\n        msgType: msgType\n    };\n}\n\n// === ⚠️ ตรวจสอบสถานะของอุปกรณ์ Gateway ===\nif (deviceName === \"CheckStatusGateway\") {\n    // 🧩 Mapping: ชื่อ field => IP\n    var gatewayMap = {\n        \"raspberrypi_status\": \"10.34.12.201\",\n        \"adm_status\": \"10.34.12.202\",\n        \"compressor_status\": \"10.34.12.203\",\n        \"ac_control_status\": \"10.34.12.204\",\n        \"ac_energy_status\": \"10.34.12.205\",\n        \"cctv_status\": \"10.34.12.206\"\n    };\n\n    // 🔁 วนตรวจสอบ status ทุก field\n    for (var key in gatewayMap) {\n        if (msg.hasOwnProperty(key)) {\n            var status = msg[key];\n            if (status !== \"online\") {\n                msg.alarmType = \"Gateway Offline\";\n                msg.alarmGroup = key.replace(\"_status\", \"\");\n                msg.deviceIP = gatewayMap[key];\n                msg.status = status; // เช่น offline, unreachable, null\n                return returnMsg();\n            }\n        }\n    }\n\n    // ✅ ถ้าทุกตัว online\n    return returnMsg();\n}\n\n// ❌ ไม่ใช่อุปกรณ์ที่ต้องตรวจ\nreturn returnMsg();\n",
+          "tbelScript": "return {msg: msg, metadata: metadata, msgType: msgType};"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 327,
+          "layoutY": 403
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.action.TbCreateAlarmNode",
+        "name": "Gateway Create Alarm",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1744368306134
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "alarmDetailsBuildJs": "var details = {};\ndetails.alarmType = \"Gateway Offline\";\ndetails.deviceName = metadata.deviceName || \"Unknown Device\";\ndetails.timestamp = metadata.ts || Date.now();\n\nvar offlineList = [];\n\nvar statusMap = {\n    raspberrypi_status: \"10.34.12.201\",\n    adm_status: \"10.34.12.202\",\n    compressor_status: \"10.34.12.203\",\n    ac_control_status: \"10.34.12.204\",\n    ac_energy_status: \"10.34.12.205\",\n    cctv_status: \"10.34.12.206\"\n};\n\nfor (var key in statusMap) {\n    var status = msg[key];\n    if (status !== \"online\") {\n        offlineList.push(key + \" (\" + statusMap[key] + \")\");\n    }\n}\n\nif (offlineList.length > 0) {\n    details.offlineDevices = offlineList;\n}\n\nreturn details;\n",
+          "alarmDetailsBuildTbel": "var details = {};\nif (metadata.prevAlarmDetails != null) {\n    details = JSON.parse(metadata.prevAlarmDetails);\n    //remove prevAlarmDetails from metadata\n    metadata.remove('prevAlarmDetails');\n    //now metadata is the same as it comes IN this rule node\n}\n\n\nreturn details;",
+          "useMessageAlarmData": false,
+          "overwriteAlarmDetails": false,
+          "alarmType": "$[alarmGroup]",
+          "severity": "CRITICAL",
+          "propagate": false,
+          "relationTypes": [],
+          "propagateToOwner": false,
+          "propagateToTenant": false,
+          "dynamicSeverity": false
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 821,
+          "layoutY": 364
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.filter.TbJsFilterNode",
+        "name": "FilerdeviceName=CheckStatusGateway",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1744368341253
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "if (metadata.deviceName === \"CheckStatusGateway\") {\n    return (\n        msg.hasOwnProperty(\"raspberrypi_status\") ||\n        msg.hasOwnProperty(\"adm_status\") ||\n        msg.hasOwnProperty(\"compressor_status\") ||\n        msg.hasOwnProperty(\"ac_control_status\") ||\n        msg.hasOwnProperty(\"ac_energy_status\") ||\n        msg.hasOwnProperty(\"cctv_status\")\n    );\n}\n\nreturn false;\n",
+          "tbelScript": "return msg.temperature > 20;"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 116,
+          "layoutY": 248
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.filter.TbJsFilterNode",
+        "name": "Filter alarmType",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1744368341253
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "// เช็คว่ามี alarmType หรือไม่\nif (msg.hasOwnProperty(\"alarmType\")) {\n    return true;\n}\n\n// ถ้าไม่มี alarmType → หยุดการทำงาน (ส่งไป path Failure)\nreturn false;\n",
+          "tbelScript": "return msg.temperature > 20;"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 562,
+          "layoutY": 457
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.transform.TbTransformMsgNode",
+        "name": "Body",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1744368341253
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "var deviceName = metadata.deviceName;\nvar deviceType = metadata.deviceType;\nvar timestamp = metadata.ts || Date.now().toString();\n\nvar recipientId = \"Cd5644b32b32e44b25a399b1528716c57\";\nvar messages = [];\nvar alarmTypes = [];\n\n// แปลงเวลาให้อ่านง่าย\nfunction formatDate(ts) {\n    var date = new Date(parseInt(ts));\n    var day = (\"0\" + date.getDate()).slice(-2);\n    var month = (\"0\" + (date.getMonth() + 1)).slice(-2);\n    var year = date.getFullYear();\n    var hours = (\"0\" + date.getHours()).slice(-2);\n    var minutes = (\"0\" + date.getMinutes()).slice(-2);\n    var seconds = (\"0\" + date.getSeconds()).slice(-2);\n    return day + \"/\" + month + \"/\" + year + \" \" + hours + \":\" + minutes + \":\" + seconds;\n}\n\nvar formattedDate = formatDate(timestamp);\n\n// ✅ ฟังก์ชันเพิ่มข้อความแจ้งเตือน\nfunction addAlarm(type, detail) {\n    if (alarmTypes.indexOf(type) === -1) {\n        alarmTypes.push(type);\n    }\n    messages.push({\n        type: \"text\",\n        text: \"🚨 แจ้งเตือนสถานะ Gateway\\n\" +\n              \"📅 เวลา: \" + formattedDate + \"\\n\" +\n              \"⚠️ ประเภท: \" + type + \"\\n\" +\n              \"📌 รายละเอียด: \" + detail\n    });\n}\n\n// ✅ ตรวจสอบสถานะ Gateway\nif (deviceName === \"CheckStatusGateway\") {\n    var gatewayMap = {\n        \"raspberrypi_status\": { label: \"Raspberry Pi\", ip: \"10.34.12.201\" },\n        \"adm_status\":         { label: \"ADM\",          ip: \"10.34.12.202\" },\n        \"compressor_status\":  { label: \"Compressor\",   ip: \"10.34.12.203\" },\n        \"ac_control_status\":  { label: \"AC Control\",   ip: \"10.34.12.204\" },\n        \"ac_energy_status\":   { label: \"AC Energy\",    ip: \"10.34.12.205\" },\n        \"cctv_status\":        { label: \"CCTV\",         ip: \"10.34.12.206\" }\n    };\n\n    for (var key in gatewayMap) {\n        if (msg.hasOwnProperty(key)) {\n            var status = msg[key];\n            if (status !== \"online\") {\n                var gateway = gatewayMap[key];\n                addAlarm(\"Gateway Offline\", gateway.label + \" (\" + gateway.ip + \") ไม่พร้อมใช้งาน (\" + status + \")\");\n            }\n        }\n    }\n}\n\n// ✅ สร้าง output สำหรับส่งแจ้งเตือน\nvar output = {\n    msg: {\n        to: recipientId,\n        messages: messages,\n        alarmType: alarmTypes.join(\", \") || null\n    },\n    metadata: {\n        deviceType: deviceType || \"Unknown Device\",\n        mqttTopic: \"v1/devices/sensors/telemetry\",\n        deviceName: deviceName || \"Unknown Device\",\n        ts: timestamp\n    },\n    msgType: messages.length > 0 ? \"POST_TELEMETRY_REQUEST\" : \"NO_ALERT\"\n};\n\nreturn output;\n",
+          "tbelScript": "return {msg: msg, metadata: metadata, msgType: msgType};"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 834,
+          "layoutY": 497
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.rest.TbRestApiCallNode",
+        "name": "Line",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1744367803099
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 3,
+        "configuration": {
+          "restEndpointUrlPattern": "https://api.line.me/v2/bot/message/push",
+          "requestMethod": "POST",
+          "useSimpleClientHttpFactory": false,
+          "parseToPlainText": false,
+          "ignoreRequestBody": false,
+          "enableProxy": false,
+          "useSystemProxyProperties": false,
+          "proxyScheme": null,
+          "proxyHost": null,
+          "proxyPort": 0,
+          "proxyUser": null,
+          "proxyPassword": null,
+          "readTimeoutMs": 0,
+          "maxParallelRequestsCount": 0,
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer m8UZnSVN3YU995QfazTRAGjwwg6tNi4DaMahokcHeqQazdVMCJX6677vN0QBhJxodfJ3hDmjpkgwXhurEWtMkPgcnrfcQC8Tw86yQmReg35d/KsxGcEwoIMClZUYoYGPY+eh45rxqXrGe6Q5l+ZWuwdB04t89/1O/w1cDnyilFU="
+          },
+          "credentials": {
+            "type": "anonymous"
+          },
+          "maxInMemoryBufferSizeInKb": 256
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 1140,
+          "layoutY": 495
+        }
+      }
+    ],
+    "connections": [
+      {
+        "fromIndex": 0,
+        "toIndex": 3,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 0,
+        "type": "True"
+      },
+      {
+        "fromIndex": 3,
+        "toIndex": 1,
+        "type": "True"
+      },
+      {
+        "fromIndex": 3,
+        "toIndex": 4,
+        "type": "True"
+      }
+    ],
+    "ruleChainConnections": null
+  }
+}

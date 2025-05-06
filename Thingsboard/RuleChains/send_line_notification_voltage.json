@@ -1,0 +1,204 @@
+{
+  "ruleChain": {
+    "name": "Send Line Notification (ตรวจไฟตก-ไฟเกิน_RealData)",
+    "type": "CORE",
+    "firstRuleNodeId": null,
+    "root": false,
+    "debugMode": false,
+    "configuration": null,
+    "additionalInfo": {
+      "description": ""
+    }
+  },
+  "metadata": {
+    "version": 99,
+    "firstNodeIndex": 2,
+    "nodes": [
+      {
+        "type": "org.thingsboard.rule.engine.transform.TbTransformMsgNode",
+        "name": "ตรวจไฟตก-ไฟเกิน",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1745982934467
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "var deviceName = metadata.deviceName;\n\n// Voltage ของ 3PhaseMeter\nvar voltage1 = msg[\"averageVoltageKhw1\"];\nvar voltage2 = msg[\"averageVoltageKhw2\"];\nvar voltage3 = msg[\"averageVoltageKhw3\"];\nvar voltage4 = msg[\"averageVoltageKhw4\"];\n\n// Voltage ของ ADM\nvar g1 = msg[\"ComG1_voltage\"];\nvar g2 = msg[\"ComG2_voltage\"];\nvar g3 = msg[\"ComG3_voltage\"];\nvar g4 = msg[\"ComG4_voltage\"];\nvar instructor = msg[\"Instructor_voltage\"];\nvar normal = msg[\"NormalLine_voltage\"];\nvar emergency = msg[\"EmergencyLine_voltage\"];\n\nfunction returnMsg() {\n    return {\n        msg: msg,\n        metadata: metadata,\n        msgType: msgType\n    };\n}\n\n// === กรณี 3PhaseMeter ===\nif (deviceName === \"3PhaseMeter\") {\n    var hasAnyVoltage = msg.hasOwnProperty(\"averageVoltageKhw1\") ||\n                        msg.hasOwnProperty(\"averageVoltageKhw2\") ||\n                        msg.hasOwnProperty(\"averageVoltageKhw3\") ||\n                        msg.hasOwnProperty(\"averageVoltageKhw4\");\n\n    if (!hasAnyVoltage) return returnMsg();\n\n    var allZero = \n        (voltage1 === 0 || voltage1 === undefined) &&\n        (voltage2 === 0 || voltage2 === undefined) &&\n        (voltage3 === 0 || voltage3 === undefined) &&\n        (voltage4 === 0 || voltage4 === undefined);\n\n    if (allZero) {\n        msg.alarmType = \"Power Outage\";\n        msg.alarmGroup = \"AC\";\n        return returnMsg();\n    }\n\n    if (\n        (voltage1 !== undefined && voltage1 < 210) ||\n        (voltage2 !== undefined && voltage2 < 210) ||\n        (voltage3 !== undefined && voltage3 < 210) ||\n        (voltage4 !== undefined && voltage4 < 210)\n    ) {\n        msg.alarmType = \"Undervoltage\";\n        msg.alarmGroup = \"AC\";\n        return returnMsg();\n    }\n\n    if (\n        (voltage1 !== undefined && voltage1 > 230) ||\n        (voltage2 !== undefined && voltage2 > 230) ||\n        (voltage3 !== undefined && voltage3 > 230) ||\n        (voltage4 !== undefined && voltage4 > 230)\n    ) {\n        msg.alarmType = \"Overvoltage\";\n        msg.alarmGroup = \"AC\";\n        return returnMsg();\n    }\n\n    return returnMsg();\n}\n\n\n// === กรณี ADM ===\nif (deviceName === \"ADM\") {\n    var hasADMVoltage = msg.hasOwnProperty(\"ComG1_voltage\") ||\n                        msg.hasOwnProperty(\"ComG2_voltage\") ||\n                        msg.hasOwnProperty(\"ComG3_voltage\") ||\n                        msg.hasOwnProperty(\"ComG4_voltage\") ||\n                        msg.hasOwnProperty(\"Instructor_voltage\") ||\n                        msg.hasOwnProperty(\"NormalLine_voltage\") ||\n                        msg.hasOwnProperty(\"EmergencyLine_voltage\");\n\n    if (!hasADMVoltage) return returnMsg();\n\n    // === กลุ่ม ComputerGroup ===\n    var computerGroup = [\n        { key: \"ComG1_voltage\", value: g1 },\n        { key: \"ComG2_voltage\", value: g2 },\n        { key: \"ComG3_voltage\", value: g3 },\n        { key: \"ComG4_voltage\", value: g4 },\n        { key: \"Instructor_voltage\", value: instructor }\n    ];\n\n    var computerOutage = computerGroup.some(function(v) {\n        return v.value === 0;\n    });\n\n    var computerOver = computerGroup.some(function(v) {\n        return v.value !== undefined && v.value > 240;\n    });\n\n    var computerUnder = computerGroup.some(function(v) {\n        return v.value !== undefined && v.value < 210 && v.value !== 0;\n    });\n\n    if (computerOutage) {\n        msg.alarmType = \"Power Outage\";\n        msg.alarmGroup = \"ComputerGroup\";\n        return returnMsg();\n    }\n\n    if (computerOver) {\n        msg.alarmType = \"Overvoltage\";\n        msg.alarmGroup = \"ComputerGroup\";\n        return returnMsg();\n    }\n\n    if (computerUnder) {\n        msg.alarmType = \"Undervoltage\";\n        msg.alarmGroup = \"ComputerGroup\";\n        return returnMsg();\n    }\n\n    // === กลุ่ม LightGroup ===\n    var lightGroup = [\n        { key: \"NormalLine_voltage\", value: normal },\n        { key: \"EmergencyLine_voltage\", value: emergency }\n    ];\n\n    var lightOutage = lightGroup.some(function(v) {\n        return v.value === 0;\n    });\n\n    var lightOver = lightGroup.some(function(v) {\n        return v.value !== undefined && v.value > 240;\n    });\n\n    var lightUnder = lightGroup.some(function(v) {\n        return v.value !== undefined && v.value < 210 && v.value !== 0;\n    });\n\n    if (lightOutage) {\n        msg.alarmType = \"Power Outage\";\n        msg.alarmGroup = \"LightGroup\";\n        return returnMsg();\n    }\n\n    if (lightOver) {\n        msg.alarmType = \"Overvoltage\";\n        msg.alarmGroup = \"LightGroup\";\n        return returnMsg();\n    }\n\n    if (lightUnder) {\n        msg.alarmType = \"Undervoltage\";\n        msg.alarmGroup = \"LightGroup\";\n        return returnMsg();\n    }\n\n    return returnMsg();\n}\n\n\n\n// ไม่ใช่อุปกรณ์ที่สนใจ → return ปกติ\nreturn returnMsg();\n\n",
+          "tbelScript": "return {msg: msg, metadata: metadata, msgType: msgType};"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 327,
+          "layoutY": 403
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.action.TbCreateAlarmNode",
+        "name": "Voltage Alert",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1743497326449
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "alarmDetailsBuildJs": "// var details = {};\n\n// // ⚡ Mapping ComG1–ComG4 และ Instructor เป็น ComputerGroup\n// if (msg.ComG1_voltage !== undefined ||\n//     msg.ComG2_voltage !== undefined ||\n//     msg.ComG3_voltage !== undefined ||\n//     msg.ComG4_voltage !== undefined ||\n//     msg.Instructor_voltage !== undefined) {\n//     details.alarmGroup = \"ComputerGroup\";\n// }\n\n// // ⚡ Mapping NormalLine / EmergencyLine เป็น LightGroup\n// else if (msg.NormalLine_voltage !== undefined || msg.EmergencyLine_voltage !== undefined) {\n//     details.alarmGroup = \"LightGroup\";\n// }\n\n// // ✅ ถ้ายังไม่มี alarmGroup จากเงื่อนไขข้างบน → fallback\n// details.alarmGroup = details.alarmGroup || msg.alarmGroup || \"Unknown\";\n\n// // ✅ ใส่ค่าที่ผิดปกติ (คุณมีอยู่แล้ว)\n// if (msg.ComG1_voltage !== undefined) {\n//     details.ComG1_voltage = msg.ComG1_voltage;\n// }\n// // เพิ่มเงื่อนไขอื่นต่อไป...\n\n// // ✅ ประเภท Alarm\n// details.alarmType = msg.alarmType || \"N/A\";\n\n// // ✅ Timestamp\n// details.timestamp = metadata.ts || Date.now();\n\n// return details;\n\nvar details = {};\n\n// ⚡ Mapping alarmGroup\nif (\n    msg.ComG1_voltage !== undefined ||\n    msg.ComG2_voltage !== undefined ||\n    msg.ComG3_voltage !== undefined ||\n    msg.ComG4_voltage !== undefined ||\n    msg.Instructor_voltage !== undefined\n) {\n    details.alarmGroup = \"ComputerGroup\";\n\n} else if (\n    msg.NormalLine_voltage !== undefined ||\n    msg.EmergencyLine_voltage !== undefined\n) {\n    details.alarmGroup = \"LightGroup\";\n\n} else if (\n    msg.averageVoltageKhw1 !== undefined ||\n    msg.averageVoltageKhw2 !== undefined ||\n    msg.averageVoltageKhw3 !== undefined ||\n    msg.averageVoltageKhw4 !== undefined\n) {\n    details.alarmGroup = \"AC\";\n}\n\n// ✅ fallback\ndetails.alarmGroup = details.alarmGroup || msg.alarmGroup || \"Unknown\";\n\n// ⚠️ ตรวจผิดปกติ\nfunction isAbnormal(v) {\n    return v === 0 || v < 210 || v > 230;\n}\n\n// ✅ ตรวจค่าผิดปกติจริง ๆ เท่านั้น\nvar abnormalVoltages = [\n    { key: \"ComG1_voltage\", value: msg.ComG1_voltage },\n    { key: \"ComG2_voltage\", value: msg.ComG2_voltage },\n    { key: \"ComG3_voltage\", value: msg.ComG3_voltage },\n    { key: \"ComG4_voltage\", value: msg.ComG4_voltage },\n    { key: \"Instructor_voltage\", value: msg.Instructor_voltage },\n    { key: \"NormalLine_voltage\", value: msg.NormalLine_voltage },\n    { key: \"EmergencyLine_voltage\", value: msg.EmergencyLine_voltage },\n    { key: \"averageVoltageKhw1\", value: msg.averageVoltageKhw1 },\n    { key: \"averageVoltageKhw2\", value: msg.averageVoltageKhw2 },\n    { key: \"averageVoltageKhw3\", value: msg.averageVoltageKhw3 },\n    { key: \"averageVoltageKhw4\", value: msg.averageVoltageKhw4 }\n];\n\nabnormalVoltages.forEach(function(v) {\n    if (v.value !== undefined && isAbnormal(v.value)) {\n        details[v.key] = v.value;\n    }\n});\n\n// ✅ ประเภทและเวลา\ndetails.alarmType = msg.alarmType || \"N/A\";\ndetails.timestamp = metadata.ts || Date.now();\n\nreturn details;\n",
+          "alarmDetailsBuildTbel": "var details = {};\nif (metadata.prevAlarmDetails != null) {\n    details = JSON.parse(metadata.prevAlarmDetails);\n    //remove prevAlarmDetails from metadata\n    metadata.remove('prevAlarmDetails');\n    //now metadata is the same as it comes IN this rule node\n}\n\n\nreturn details;",
+          "useMessageAlarmData": false,
+          "overwriteAlarmDetails": false,
+          "alarmType": "$[alarmGroup]",
+          "severity": "CRITICAL",
+          "propagate": false,
+          "relationTypes": [
+            "$[alarmGroup]"
+          ],
+          "propagateToOwner": false,
+          "propagateToTenant": false,
+          "dynamicSeverity": false
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 821,
+          "layoutY": 364
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.filter.TbJsFilterNode",
+        "name": "FilerdeviceName",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1745982934467
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "if (metadata.deviceName === \"ADM\") {\n    return (\n        msg.hasOwnProperty(\"ComG1_voltage\") ||\n        msg.hasOwnProperty(\"ComG2_voltage\") ||\n        msg.hasOwnProperty(\"ComG3_voltage\") ||\n        msg.hasOwnProperty(\"ComG4_voltage\") ||\n        msg.hasOwnProperty(\"Instructor_voltage\") ||\n        msg.hasOwnProperty(\"NormalLine_voltage\") ||\n        msg.hasOwnProperty(\"EmergencyLine_voltage\")\n    );\n}\n\nif (metadata.deviceName === \"3PhaseMeter\") {\n    return (\n        msg.hasOwnProperty(\"averageVoltageKhw1\") ||\n        msg.hasOwnProperty(\"averageVoltageKhw2\") ||\n        msg.hasOwnProperty(\"averageVoltageKhw3\") ||\n        msg.hasOwnProperty(\"averageVoltageKhw4\")\n    );\n}\n\n// ❌ อุปกรณ์อื่นที่ไม่ใช่ ADM หรือ 3PhaseMeter → ตัดทิ้ง\nreturn false;\n\n",
+          "tbelScript": "return msg.temperature > 20;"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 116,
+          "layoutY": 248
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.filter.TbJsFilterNode",
+        "name": "Filter alarmType",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1745982934467
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "// เช็คว่ามี alarmType หรือไม่\nif (msg.hasOwnProperty(\"alarmType\")) {\n    return true;\n}\n\n// ถ้าไม่มี alarmType → หยุดการทำงาน (ส่งไป path Failure)\nreturn false;\n",
+          "tbelScript": "return msg.temperature > 20;"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 562,
+          "layoutY": 457
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.transform.TbTransformMsgNode",
+        "name": "Body",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1743500462306
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "var deviceName = metadata.deviceName;\nvar deviceType = metadata.deviceType;\nvar timestamp = metadata.ts || Date.now().toString(); // ใช้ timestamp จาก metadata หรือเวลาปัจจุบัน\n\nvar recipientId = \"Cd5644b32b32e44b25a399b1528716c57\";\nvar messages = [];\nvar alarmTypes = [];\n\n// Voltage ของ 3PhaseMeter\nvar voltage1 = msg[\"averageVoltageKhw1\"];\nvar voltage2 = msg[\"averageVoltageKhw2\"];\nvar voltage3 = msg[\"averageVoltageKhw3\"];\nvar voltage4 = msg[\"averageVoltageKhw4\"];\n\n// Voltage ของ ADM\nvar g1 = msg[\"ComG1_voltage\"];\nvar g2 = msg[\"ComG2_voltage\"];\nvar g3 = msg[\"ComG3_voltage\"];\nvar g4 = msg[\"ComG4_voltage\"];\nvar instructor = msg[\"Instructor_voltage\"];\nvar normal = msg[\"NormalLine_voltage\"];\nvar emergency = msg[\"EmergencyLine_voltage\"];\n\n// 🕒 ฟังก์ชันแปลง timestamp ให้อ่านง่าย\nfunction formatDate(ts) {\n    var date = new Date(parseInt(ts));\n    var day = (\"0\" + date.getDate()).slice(-2);\n    var month = (\"0\" + (date.getMonth() + 1)).slice(-2);\n    var year = date.getFullYear();\n    var hours = (\"0\" + date.getHours()).slice(-2);\n    var minutes = (\"0\" + date.getMinutes()).slice(-2);\n    var seconds = (\"0\" + date.getSeconds()).slice(-2);\n    return day + \"/\" + month + \"/\" + year + \" \" + hours + \":\" + minutes + \":\" + seconds;\n}\n\nvar formattedDate = formatDate(timestamp);\n\n// ⚡ ฟังก์ชันตรวจแรงดันผิดปกติ\nfunction checkVoltage(voltage, label) {\n    if (voltage !== undefined) {\n        var alarmType = null;\n        if (voltage < 210) {\n            alarmType = \"Undervoltage\";\n        } else if (voltage > 240) {\n            alarmType = \"Overvoltage\";\n        }\n\n        if (alarmType) {\n            alarmTypes.push(alarmType);\n\n            messages.push({\n                type: \"text\",\n                text: \"📢 แจ้งเตือนจากอุปกรณ์: \" + deviceName + \"\\n\" +\n                      \"📅 วันที่: \" + formattedDate + \"\\n\" +\n                      \"⚠️ Alarm Type: \" + alarmType + \"\\n\" +\n                      \"⚡ ค่าแรงดัน \" + label + \" ผิดปกติ (\" + voltage + \"V)\"\n            });\n        }\n    }\n}\n\n// ✅ ตรวจตามประเภทอุปกรณ์\nif (deviceName === \"3PhaseMeter\") {\n    checkVoltage(voltage1, \"averageVoltageKhw1\");\n    checkVoltage(voltage2, \"averageVoltageKhw2\");\n    checkVoltage(voltage3, \"averageVoltageKhw3\");\n    checkVoltage(voltage4, \"averageVoltageKhw4\");\n}\n\nif (deviceName === \"ADM\") {\n    checkVoltage(g1, \"ComG1_voltage\");\n    checkVoltage(g2, \"ComG2_voltage\");\n    checkVoltage(g3, \"ComG3_voltage\");\n    checkVoltage(g4, \"ComG4_voltage\");\n    checkVoltage(instructor, \"Instructor_voltage\");\n    checkVoltage(normal, \"NormalLine_voltage\");\n    checkVoltage(emergency, \"EmergencyLine_voltage\");\n}\n\n// ✅ สร้าง output สำหรับส่งออก Line/Webhook\nvar output = {\n    msg: {\n        to: recipientId,\n        messages: messages,\n        alarmType: alarmTypes.join(\", \") || null\n    },\n    metadata: {\n        deviceType: deviceType || \"Unknown Device\",\n        mqttTopic: \"v1/devices/sensors/telemetry\",\n        deviceName: deviceName || \"Unknown Device\",\n        ts: timestamp\n    },\n    msgType: messages.length > 0 ? \"POST_TELEMETRY_REQUEST\" : \"NO_ALERT\"\n};\n\nreturn output;\n\n",
+          "tbelScript": "return {msg: msg, metadata: metadata, msgType: msgType};"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 834,
+          "layoutY": 497
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.rest.TbRestApiCallNode",
+        "name": "Line",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1743500462306
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 3,
+        "configuration": {
+          "restEndpointUrlPattern": "https://api.line.me/v2/bot/message/push",
+          "requestMethod": "POST",
+          "useSimpleClientHttpFactory": false,
+          "parseToPlainText": false,
+          "ignoreRequestBody": false,
+          "enableProxy": false,
+          "useSystemProxyProperties": false,
+          "proxyScheme": null,
+          "proxyHost": null,
+          "proxyPort": 0,
+          "proxyUser": null,
+          "proxyPassword": null,
+          "readTimeoutMs": 0,
+          "maxParallelRequestsCount": 0,
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer m8UZnSVN3YU995QfazTRAGjwwg6tNi4DaMahokcHeqQazdVMCJX6677vN0QBhJxodfJ3hDmjpkgwXhurEWtMkPgcnrfcQC8Tw86yQmReg35d/KsxGcEwoIMClZUYoYGPY+eh45rxqXrGe6Q5l+ZWuwdB04t89/1O/w1cDnyilFU="
+          },
+          "credentials": {
+            "type": "anonymous"
+          },
+          "maxInMemoryBufferSizeInKb": 256
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 1106,
+          "layoutY": 496
+        }
+      }
+    ],
+    "connections": [
+      {
+        "fromIndex": 0,
+        "toIndex": 3,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 0,
+        "type": "True"
+      },
+      {
+        "fromIndex": 3,
+        "toIndex": 1,
+        "type": "True"
+      },
+      {
+        "fromIndex": 3,
+        "toIndex": 4,
+        "type": "True"
+      }
+    ],
+    "ruleChainConnections": null
+  }
+}

@@ -1,0 +1,202 @@
+{
+  "ruleChain": {
+    "name": "Send Line Notification (กระแส_RealData)",
+    "type": "CORE",
+    "firstRuleNodeId": null,
+    "root": false,
+    "debugMode": false,
+    "configuration": null,
+    "additionalInfo": {
+      "description": ""
+    }
+  },
+  "metadata": {
+    "version": 47,
+    "firstNodeIndex": 2,
+    "nodes": [
+      {
+        "type": "org.thingsboard.rule.engine.transform.TbTransformMsgNode",
+        "name": "ตรวจค่า Current",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1744370782478
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "// var deviceName = metadata.deviceName;\n\n// // === Current ของ 3PhaseMeter (kWh1-4, 3 เฟส)\n// var cA1 = msg[\"currentA_kWh1\"];\n// var cB1 = msg[\"currentB_kWh1\"];\n// var cC1 = msg[\"currentC_kWh1\"];\n// var cA2 = msg[\"currentA_kWh2\"];\n// var cB2 = msg[\"currentB_kWh2\"];\n// var cC2 = msg[\"currentC_kWh2\"];\n// var cA3 = msg[\"currentA_kWh3\"];\n// var cB3 = msg[\"currentB_kWh3\"];\n// var cC3 = msg[\"currentC_kWh3\"];\n// var cA4 = msg[\"currentA_kWh4\"];\n// var cB4 = msg[\"currentB_kWh4\"];\n// var cC4 = msg[\"currentC_kWh4\"];\n\n// // === Current ของ ADM\n// var g1 = msg[\"ComG1_current\"];\n// var g2 = msg[\"ComG2_current\"];\n// var g3 = msg[\"ComG3_current\"];\n// var g4 = msg[\"ComG4_current\"];\n// var instructor = msg[\"Instructor_current\"];\n// var normal = msg[\"NormalLine_current\"];\n// var emergency = msg[\"EmergencyLine_current\"];\n\n// function returnMsg() {\n//     return {\n//         msg: msg,\n//         metadata: metadata,\n//         msgType: msgType\n//     };\n// }\n\n// // === ⚙️ ตรวจ current ของ 3PhaseMeter ===\n// if (deviceName === \"3PhaseMeter\") {\n//     var sets = [{\n//             name: \"AC 211A\",\n//             values: [cA1, cB1, cC1]\n//         },\n//         {\n//             name: \"AC 211B\",\n//             values: [cA2, cB2, cC2]\n//         },\n//         {\n//             name: \"AC 212A\",\n//             values: [cA3, cB3, cC3]\n//         },\n//         {\n//             name: \"AC 212B\",\n//             values: [cA4, cB4, cC4]\n//         }\n//     ];\n\n//     for (var i = 0; i < sets.length; i++) {\n//         var s = sets[i];\n//         var values = s.values;\n\n//         // ✅ Phase Loss: อย่างน้อย 2 เฟสมีค่า <= 0.5 หรือไม่ส่งค่า\n//         var zeroCount = values.filter(function(v) {\n//             return typeof v === 'number' && v <=\n//             0.5;\n//         }).length;\n\n\n//         if (zeroCount >= 2) {\n//             msg.alarmType = \"Phase Loss\";\n//             msg.alarmGroup = s.name;\n//             return returnMsg();\n//         }\n\n//         // ✅ Current Imbalance\n//         if (values.every(function(v) {\n//                 return v !== undefined;\n//             })) {\n//             var max = Math.max.apply(null, values);\n//             var min = Math.min.apply(null, values);\n//             if (max !== 0 && (max - min) / max > 0.2) {\n//                 msg.alarmType = \"Current Imbalance\";\n//                 msg.alarmGroup = s.name;\n//                 return returnMsg();\n//             }\n//         }\n\n//         // ✅ Overcurrent\n//         if (values.some(function(v) {\n//                 return v !== undefined && v > 30;\n//             })) {\n//             msg.alarmType = \"Overcurrent\";\n//             msg.alarmGroup = s.name;\n//             return returnMsg();\n//         }\n\n//         // ✅ Undercurrent (เฟสใดต่ำกว่า 0.5 แต่ยังไม่ใช่ Phase Loss)\n//         if (values.some(function(v) {\n//                 return v !== undefined && v < 0.5;\n//             })) {\n//             msg.alarmType = \"Undercurrent\";\n//             msg.alarmGroup = s.name;\n//             return returnMsg();\n//         }\n//     }\n\n//     return returnMsg();\n// }\n\n\n// // === ⚙️ ตรวจ current ของ ADM ===\n// if (deviceName === \"ADM\") {\n\n//     // ⚙️ ฟังก์ชันตรวจ current ผิดปกติของแต่ละกลุ่ม\n//     function evaluateGroup(groupValues, groupName) {\n//         var nonEmpty = groupValues.filter(function(c) {\n//             return c !== undefined;\n//         });\n\n//         var allZero = nonEmpty.length > 0 && nonEmpty.every(function(c) {\n//             return c === 0;\n//         });\n\n//         var hasOver = nonEmpty.some(function(c) {\n//             return c > 15;\n//         });\n\n//         var hasUnder = nonEmpty.some(function(c) {\n//             return c < 0.5;\n//         });\n\n//         if (allZero) {\n//             msg.alarmType = \"No Current Flow\";\n//             msg.alarmGroup = groupName;\n//             return true;\n//         }\n\n//         if (hasOver) {\n//             msg.alarmType = \"Overcurrent\";\n//             msg.alarmGroup = groupName;\n//             return true;\n//         }\n\n//         if (hasUnder) {\n//             msg.alarmType = \"Undercurrent\";\n//             msg.alarmGroup = groupName;\n//             return true;\n//         }\n\n//         return false;\n//     }\n\n//     // 🎯 แยกกลุ่ม Computer และ Light\n//     var computerGroup = [g1, g2, g3, g4, instructor];\n//     var lightGroup = [normal, emergency];\n\n//     // ✅ ตรวจทั้งสองกลุ่ม (ถ้าเจอผิดปกติ จะ return ทันที)\n//     if (evaluateGroup(computerGroup, \"ComputerGroup\") ||\n//         evaluateGroup(lightGroup, \"LightGroup\")) {\n//         return returnMsg();\n//     }\n\n//     // ✅ ถ้าไม่พบความผิดปกติใดๆ\n//     return returnMsg();\n// }\n\n// // ❌ ไม่ใช่อุปกรณ์ที่ต้องตรวจ\n// return returnMsg();\n\n\nvar deviceName = metadata.deviceName;\n\n// === Current ของ 3PhaseMeter (kWh1-4, 3 เฟส)\nvar cA1 = msg[\"currentA_kWh1\"];\nvar cB1 = msg[\"currentB_kWh1\"];\nvar cC1 = msg[\"currentC_kWh1\"];\nvar cA2 = msg[\"currentA_kWh2\"];\nvar cB2 = msg[\"currentB_kWh2\"];\nvar cC2 = msg[\"currentC_kWh2\"];\nvar cA3 = msg[\"currentA_kWh3\"];\nvar cB3 = msg[\"currentB_kWh3\"];\nvar cC3 = msg[\"currentC_kWh3\"];\nvar cA4 = msg[\"currentA_kWh4\"];\nvar cB4 = msg[\"currentB_kWh4\"];\nvar cC4 = msg[\"currentC_kWh4\"];\n\n// === Current ของ ADM\nvar g1 = msg[\"ComG1_current\"];\nvar g2 = msg[\"ComG2_current\"];\nvar g3 = msg[\"ComG3_current\"];\nvar g4 = msg[\"ComG4_current\"];\nvar instructor = msg[\"Instructor_current\"];\nvar normal = msg[\"NormalLine_current\"];\nvar emergency = msg[\"EmergencyLine_current\"];\n\nfunction returnMsg() {\n    return {\n        msg: msg,\n        metadata: metadata,\n        msgType: msgType\n    };\n}\n\n// === ⚙️ ตรวจ current ของ 3PhaseMeter ===\nif (deviceName === \"3PhaseMeter\") {\n    var sets = [{\n            name: \"AC 211A\",\n            values: [cA1, cB1, cC1]\n        },\n        {\n            name: \"AC 211B\",\n            values: [cA2, cB2, cC2]\n        },\n        {\n            name: \"AC 212A\",\n            values: [cA3, cB3, cC3]\n        },\n        {\n            name: \"AC 212B\",\n            values: [cA4, cB4, cC4]\n        }\n    ];\n\n    for (var i = 0; i < sets.length; i++) {\n        var s = sets[i];\n        var values = s.values;\n\n        // ✅ ถ้า current ทั้ง 3 เฟส เป็น 0 ให้ถือว่าแอร์ถูกปิดอยู่ → ไม่แจ้งเตือน\n        var allZero = values.every(function(v) {\n            return typeof v === 'number' && v === 0;\n        });\n        if (allZero) {\n            continue;\n        }\n\n        // ✅ Phase Loss: อย่างน้อย 2 เฟสมีค่า <= 0.5 หรือ undefined\n        var zeroCount = values.filter(function(v) {\n            return typeof v === 'number' && v <=\n            0.5;\n        }).length;\n\n        if (zeroCount >= 2) {\n            msg.alarmType = \"Phase Loss\";\n            msg.alarmGroup = s.name;\n            return returnMsg();\n        }\n\n        // ✅ Current Imbalance\n\n        if (values.every(function(v) {\n                return v !== undefined;\n            })) {\n            var max = Math.max.apply(null, values);\n            var min = Math.min.apply(null, values);\n\n            // ✅ ถ้ามีโหลดต่ำ (ต่ำกว่า 1A) → ไม่เช็ค Imbalance\n            if (max < 1) {\n                continue;\n            }\n\n            // ✅ เช็คเฉพาะเบี่ยงเบนมากกว่า 30%\n            if (max !== 0 && (max - min) / max > 0.3) {\n                msg.alarmType = \"Current Imbalance\";\n                msg.alarmGroup = s.name;\n                return returnMsg();\n            }\n        }\n\n\n\n        // ✅ Overcurrent\n        if (values.some(function(v) {\n                return v !== undefined && v > 30;\n            })) {\n            msg.alarmType = \"Overcurrent\";\n            msg.alarmGroup = s.name;\n            return returnMsg();\n        }\n\n        // ✅ Undercurrent\n        if (values.some(function(v) {\n                return v !== undefined && v < 0.5;\n            })) {\n            msg.alarmType = \"Undercurrent\";\n            msg.alarmGroup = s.name;\n            return returnMsg();\n        }\n    }\n\n    return returnMsg();\n}\n\n// === ⚙️ ตรวจ current ของ ADM ===\nif (deviceName === \"ADM\") {\n\n    function evaluateGroup(groupValues, groupName) {\n        var nonEmpty = groupValues.filter(function(c) {\n            return c !== undefined;\n        });\n\n        // var allZero = nonEmpty.length > 0 && nonEmpty.every(function(c) {\n        //     return c === 0;\n        // });\n\n        var hasOver = nonEmpty.some(function(c) {\n            return c > 15;\n        });\n\n        var hasUnder = nonEmpty.some(function(c) {\n            return c < 0.5 && c !== 0;\n        });\n\n        if (allZero) {\n            msg.alarmType = \"No Current Flow\";\n            msg.alarmGroup = groupName;\n            return true;\n        }\n\n        if (hasOver) {\n            msg.alarmType = \"Overcurrent\";\n            msg.alarmGroup = groupName;\n            return true;\n        }\n\n        if (hasUnder) {\n            msg.alarmType = \"Undercurrent\";\n            msg.alarmGroup = groupName;\n            return true;\n        }\n\n        return false;\n    }\n\n    var computerGroup = [g1, g2, g3, g4, instructor];\n    var lightGroup = [normal, emergency];\n\n    if (evaluateGroup(computerGroup, \"ComputerGroup\") ||\n        evaluateGroup(lightGroup, \"LightGroup\")) {\n        return returnMsg();\n    }\n\n    return returnMsg();\n}\n\n// ❌ ไม่ใช่อุปกรณ์ที่ต้องตรวจ\nreturn returnMsg();",
+          "tbelScript": "return {msg: msg, metadata: metadata, msgType: msgType};"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 327,
+          "layoutY": 403
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.action.TbCreateAlarmNode",
+        "name": "Current Alert",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1744370790889
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "alarmDetailsBuildJs": "// var details = {};\n\n// // ดึงค่า voltage จาก msg (เฉพาะที่มีค่า)\n// if (msg.averageVoltageKhw1 !== undefined) {\n//     details.voltage211A = msg.averageVoltageKhw1;\n// }\n// if (msg.averageVoltageKhw2 !== undefined) {\n//     details.voltage211B = msg.averageVoltageKhw2;\n// }\n// if (msg.averageVoltageKhw3 !== undefined) {\n//     details.voltage212A = msg.averageVoltageKhw3;\n// }\n// if (msg.averageVoltageKhw4 !== undefined) {\n//     details.voltage212B = msg.averageVoltageKhw4;\n// }\n\n// // ใส่ประเภท alarm\n// details.alarmType = msg.alarmType || \"N/A\";\n\n// // ใส่ timestamp (เป็นเลข millisecond)\n// // details.timestamp = metadata.ts || Date.now();\n\n// return details;\n\nvar details = {};\n\n// ✅ ประเภทและกลุ่มของ alarm\ndetails.alarmType = msg.alarmType || \"N/A\";\ndetails.alarmGroup = msg.alarmGroup || \"Unknown\";\n\n// ✅ สร้าง object เพื่อเก็บค่าที่ผิดปกติเท่านั้น\nvar abnormal = {};\n\n// === ตรวจค่า current ผิดปกติของ 3PhaseMeter (Phase Loss, Imbalance, etc.)\nvar currentKeys = [\n    \"currentA_kWh1\", \"currentB_kWh1\", \"currentC_kWh1\",\n    \"currentA_kWh2\", \"currentB_kWh2\", \"currentC_kWh2\",\n    \"currentA_kWh3\", \"currentB_kWh3\", \"currentC_kWh3\",\n    \"currentA_kWh4\", \"currentB_kWh4\", \"currentC_kWh4\"\n];\n\nfor (var i = 0; i < currentKeys.length; i++) {\n    var key = currentKeys[i];\n    var value = msg[key];\n    if (value !== undefined && (value === 0 || value < 0.5 || value > 30)) {\n        abnormal[key] = value;\n    }\n}\n\n// // === ตรวจค่า voltage ผิดปกติ (เช่น Over/Under voltage)\n// var voltageKeys = [\n//     \"averageVoltageKhw1\", \"averageVoltageKhw2\",\n//     \"averageVoltageKhw3\", \"averageVoltageKhw4\",\n//     \"ComG1_voltage\", \"ComG2_voltage\", \"ComG3_voltage\", \"ComG4_voltage\",\n//     \"Instructor_voltage\", \"NormalLine_voltage\", \"EmergencyLine_voltage\"\n// ];\n\n// for (var j = 0; j < voltageKeys.length; j++) {\n//     var vkey = voltageKeys[j];\n//     var val = msg[vkey];\n//     if (val !== undefined && (val < 210 || val > 240)) {\n//         abnormal[vkey] = val;\n//     }\n// }\n\n// === ตรวจค่า current ของ ADM\nvar admCurrents = [\n    \"ComG1_current\", \"ComG2_current\", \"ComG3_current\", \"ComG4_current\",\n    \"Instructor_current\", \"NormalLine_current\", \"EmergencyLine_current\"\n];\n\nfor (var k = 0; k < admCurrents.length; k++) {\n    var ckey = admCurrents[k];\n    var cval = msg[ckey];\n    if (cval !== undefined && (cval < 0.5 || cval > 15)) {\n        abnormal[ckey] = cval;\n    }\n}\n\n// ✅ ถ้ามีค่า abnormal จริง ค่อยแนบเข้า details\nif (Object.keys(abnormal).length > 0) {\n    details.abnormalValues = abnormal;\n}\n\n// ✅ Timestamp (optional)\ndetails.timestamp = metadata.ts || Date.now();\n\nreturn details;\n",
+          "alarmDetailsBuildTbel": "var details = {};\nif (metadata.prevAlarmDetails != null) {\n    details = JSON.parse(metadata.prevAlarmDetails);\n    //remove prevAlarmDetails from metadata\n    metadata.remove('prevAlarmDetails');\n    //now metadata is the same as it comes IN this rule node\n}\n\n\nreturn details;",
+          "useMessageAlarmData": false,
+          "overwriteAlarmDetails": false,
+          "alarmType": "$[alarmGroup]",
+          "severity": "CRITICAL",
+          "propagate": false,
+          "relationTypes": [],
+          "propagateToOwner": false,
+          "propagateToTenant": false,
+          "dynamicSeverity": false
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 821,
+          "layoutY": 364
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.filter.TbJsFilterNode",
+        "name": "FilerdeviceName",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1744370782478
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "if (metadata.deviceName === \"ADM\") {\n    return (\n        msg.hasOwnProperty(\"ComG1_current\") ||\n        msg.hasOwnProperty(\"ComG2_current\") ||\n        msg.hasOwnProperty(\"ComG3_current\") ||\n        msg.hasOwnProperty(\"ComG4_current\") ||\n        msg.hasOwnProperty(\"Instructor_current\") ||\n        msg.hasOwnProperty(\"NormalLine_current\") ||\n        msg.hasOwnProperty(\"EmergencyLine_current\")\n    );\n}\n\nif (metadata.deviceName === \"3PhaseMeter\") {\n    return (\n        msg.hasOwnProperty(\"currentA_kWh1\") || msg.hasOwnProperty(\"currentB_kWh1\") || msg.hasOwnProperty(\"currentC_kWh1\") ||\n        msg.hasOwnProperty(\"currentA_kWh2\") || msg.hasOwnProperty(\"currentB_kWh2\") || msg.hasOwnProperty(\"currentC_kWh2\") ||\n        msg.hasOwnProperty(\"currentA_kWh3\") || msg.hasOwnProperty(\"currentB_kWh3\") || msg.hasOwnProperty(\"currentC_kWh3\") ||\n        msg.hasOwnProperty(\"currentA_kWh4\") || msg.hasOwnProperty(\"currentB_kWh4\") || msg.hasOwnProperty(\"currentC_kWh4\")\n    );\n}\n\n// ❌ อุปกรณ์อื่นที่ไม่ใช่ ADM หรือ 3PhaseMeter → ตัดทิ้ง\nreturn false;\n",
+          "tbelScript": "return msg.temperature > 20;"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 116,
+          "layoutY": 248
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.filter.TbJsFilterNode",
+        "name": "Filter alarmType",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1744370782478
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "// เช็คว่ามี alarmType หรือไม่\nif (msg.hasOwnProperty(\"alarmType\")) {\n    return true;\n}\n\n// ถ้าไม่มี alarmType → หยุดการทำงาน (ส่งไป path Failure)\nreturn false;\n",
+          "tbelScript": "return msg.temperature > 20;"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 562,
+          "layoutY": 457
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.transform.TbTransformMsgNode",
+        "name": "Body",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1744370782478
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "var deviceName = metadata.deviceName;\nvar deviceType = metadata.deviceType;\nvar timestamp = metadata.ts || Date.now().toString();\n\nvar recipientId = \"Cd5644b32b32e44b25a399b1528716c57\";\nvar messages = [];\nvar alarmTypes = [];\n\n// Current ของ ADM\nvar g1 = msg[\"ComG1_current\"];\nvar g2 = msg[\"ComG2_current\"];\nvar g3 = msg[\"ComG3_current\"];\nvar g4 = msg[\"ComG4_current\"];\nvar instructor = msg[\"Instructor_current\"];\nvar normal = msg[\"NormalLine_current\"];\nvar emergency = msg[\"EmergencyLine_current\"];\n\n// ฟังก์ชันแปลง timestamp ให้อ่านง่าย\nfunction formatDate(ts) {\n    var date = new Date(parseInt(ts));\n    var day = (\"0\" + date.getDate()).slice(-2);\n    var month = (\"0\" + (date.getMonth() + 1)).slice(-2);\n    var year = date.getFullYear();\n    var hours = (\"0\" + date.getHours()).slice(-2);\n    var minutes = (\"0\" + date.getMinutes()).slice(-2);\n    var seconds = (\"0\" + date.getSeconds()).slice(-2);\n    return day + \"/\" + month + \"/\" + year + \" \" + hours + \":\" + minutes + \":\" + seconds;\n}\n\nvar formattedDate = formatDate(timestamp);\n\n// ฟังก์ชันเพิ่มข้อความแจ้งเตือน\nfunction addAlarm(type, detail) {\n    if (alarmTypes.indexOf(type) === -1) {\n        alarmTypes.push(type);\n    }\n    messages.push({\n        type: \"text\",\n        text: \"📢 แจ้งเตือนจากอุปกรณ์: \" + deviceName + \"\\n\" +\n              \"📅 วันที่: \" + formattedDate + \"\\n\" +\n              \"⚠️ Alarm Type: \" + type + \"\\n\" +\n              \"📌 รายละเอียด: \" + detail\n    });\n}\n\n\n// ✅ ตรวจค่า current ผิดปกติจาก 3PhaseMeter\nif (deviceName === \"3PhaseMeter\") {\n    var airMap = {\n        \"kWh1\": {\n            A: msg[\"currentA_kWh1\"],\n            B: msg[\"currentB_kWh1\"],\n            C: msg[\"currentC_kWh1\"],\n            label: \"แอร์ 211A\"\n        },\n        \"kWh2\": {\n            A: msg[\"currentA_kWh2\"],\n            B: msg[\"currentB_kWh2\"],\n            C: msg[\"currentC_kWh2\"],\n            label: \"แอร์ 211B\"\n        },\n        \"kWh3\": {\n            A: msg[\"currentA_kWh3\"],\n            B: msg[\"currentB_kWh3\"],\n            C: msg[\"currentC_kWh3\"],\n            label: \"แอร์ 212A\"\n        },\n        \"kWh4\": {\n            A: msg[\"currentA_kWh4\"],\n            B: msg[\"currentB_kWh4\"],\n            C: msg[\"currentC_kWh4\"],\n            label: \"แอร์ 212B\"\n        }\n    };\n\n    for (var key in airMap) {\n        var entry = airMap[key];\n        var A = entry.A;\n        var B = entry.B;\n        var C = entry.C;\n        var label = entry.label;\n\n        // ❗ ตรวจเฉพาะ kWh ที่มีข้อมูลเข้ามา\n        if (A === undefined && B === undefined && C === undefined) {\n            continue;\n        }\n\n        // ✅ Phase Loss\n        if ((A === 0 || A === undefined) ||\n            (B === 0 || B === undefined) ||\n            (C === 0 || C === undefined)) {\n            addAlarm(\"Phase Loss\", label + \": เฟสใดเฟสหนึ่งไม่มีกระแส\");\n            continue;\n        }\n\n        // ✅ Current Imbalance > 20%\n        var maxVal = Math.max(A, B, C);\n        var minVal = Math.min(A, B, C);\n        if (maxVal !== 0 && (maxVal - minVal) / maxVal > 0.2) {\n            addAlarm(\"Current Imbalance\", label + \": กระแสเฟสไม่สมดุล (ต่างกันเกิน 20%)\");\n            continue;\n        }\n\n        // ✅ Overcurrent > 30A\n        if ((A !== undefined && A > 30) ||\n            (B !== undefined && B > 30) ||\n            (C !== undefined && C > 30)) {\n            addAlarm(\"Overcurrent\", label + \": มีกระแสเกิน 30A\");\n            continue;\n        }\n\n        // ✅ Undercurrent < 0.5A\n        if ((A !== undefined && A < 0.5) ||\n            (B !== undefined && B < 0.5) ||\n            (C !== undefined && C < 0.5)) {\n            addAlarm(\"Undercurrent\", label + \": มีกระแสต่ำกว่า 0.5A\");\n            continue;\n        }\n    }\n}\n\n// ✅ ตรวจ current ผิดปกติของ ADM\nif (deviceName === \"ADM\") {\n    var admCurrents = [\n        { value: g1, label: \"ComG1\" },\n        { value: g2, label: \"ComG2\" },\n        { value: g3, label: \"ComG3\" },\n        { value: g4, label: \"ComG4\" },\n        { value: instructor, label: \"Instructor\" },\n        { value: normal, label: \"Normal Line\" },\n        { value: emergency, label: \"Emergency Line\" }\n    ];\n\n    var allZero = admCurrents.every(function(c) {\n        return c.value === 0 || c.value === undefined;\n    });\n\n    if (allZero) {\n        addAlarm(\"No Current Flow\", \"ทุกจุดของ ADM ไม่มีกระแสไฟฟ้า\");\n    }\n\n    admCurrents.forEach(function(c) {\n        if (c.value !== undefined && c.value > 30) {\n            addAlarm(\"Overcurrent\", c.label + \": มีกระแสเกิน 30A (\" + c.value + \"A)\");\n        }\n        if (c.value !== undefined && c.value < 0.5) {\n            addAlarm(\"Undercurrent\", c.label + \": มีกระแสต่ำกว่า 0.5A (\" + c.value + \"A)\");\n        }\n    });\n}\n\n\n// ✅ สร้าง output สำหรับ Webhook / LINE Notify\nvar output = {\n    msg: {\n        to: recipientId,\n        messages: messages,\n        alarmType: alarmTypes.join(\", \") || null\n    },\n    metadata: {\n        deviceType: deviceType || \"Unknown Device\",\n        mqttTopic: \"v1/devices/sensors/telemetry\",\n        deviceName: deviceName || \"Unknown Device\",\n        ts: timestamp\n    },\n    msgType: messages.length > 0 ? \"POST_TELEMETRY_REQUEST\" : \"NO_ALERT\"\n};\n\nreturn output;\n",
+          "tbelScript": "return {msg: msg, metadata: metadata, msgType: msgType};"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 834,
+          "layoutY": 497
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.rest.TbRestApiCallNode",
+        "name": "Line",
+        "debugSettings": {
+          "failuresEnabled": true,
+          "allEnabled": false,
+          "allEnabledUntil": 1743500402325
+        },
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 3,
+        "configuration": {
+          "restEndpointUrlPattern": "https://api.line.me/v2/bot/message/push",
+          "requestMethod": "POST",
+          "useSimpleClientHttpFactory": false,
+          "parseToPlainText": false,
+          "ignoreRequestBody": false,
+          "enableProxy": false,
+          "useSystemProxyProperties": false,
+          "proxyScheme": null,
+          "proxyHost": null,
+          "proxyPort": 0,
+          "proxyUser": null,
+          "proxyPassword": null,
+          "readTimeoutMs": 0,
+          "maxParallelRequestsCount": 0,
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer m8UZnSVN3YU995QfazTRAGjwwg6tNi4DaMahokcHeqQazdVMCJX6677vN0QBhJxodfJ3hDmjpkgwXhurEWtMkPgcnrfcQC8Tw86yQmReg35d/KsxGcEwoIMClZUYoYGPY+eh45rxqXrGe6Q5l+ZWuwdB04t89/1O/w1cDnyilFU="
+          },
+          "credentials": {
+            "type": "anonymous"
+          },
+          "maxInMemoryBufferSizeInKb": 256
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 1140,
+          "layoutY": 495
+        }
+      }
+    ],
+    "connections": [
+      {
+        "fromIndex": 0,
+        "toIndex": 3,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 0,
+        "type": "True"
+      },
+      {
+        "fromIndex": 3,
+        "toIndex": 1,
+        "type": "True"
+      },
+      {
+        "fromIndex": 3,
+        "toIndex": 4,
+        "type": "True"
+      }
+    ],
+    "ruleChainConnections": null
+  }
+}
